@@ -1,0 +1,75 @@
+[build-system]
+requires = ["hatchling>=1.26,<1.32"]
+build-backend = "hatchling.build"
+
+[project]
+name = "AIserver"
+version = "0.1.0"
+description = "A lightweight, local-first Python server for typed AI inference tasks"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+  { name = "NocoldBob" },
+]
+keywords = [
+  "ai",
+  "inference",
+  "model-serving",
+  "fastapi",
+  "local-first",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Web Environment",
+  "Framework :: FastAPI",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Software Development :: Libraries :: Application Frameworks",
+]
+dependencies = [
+  "fastapi>=0.115,<1.0",
+  "pydantic>=2.8,<3.0",
+  "uvicorn>=0.30,<1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "build>=1.2,<2.0",
+  "httpx2>=2.10,<3.0",
+  "pytest>=8.3,<10.0",
+  "ruff>=0.9,<1.0",
+  "twine>=6.0,<7.0",
+]
+
+[project.scripts]
+aiserver = "aiserver.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/NocoldBob/AIserver"
+Documentation = "https://github.com/NocoldBob/AIserver#readme"
+Repository = "https://github.com/NocoldBob/AIserver.git"
+Issues = "https://github.com/NocoldBob/AIserver/issues"
+Changelog = "https://github.com/NocoldBob/AIserver/blob/main/CHANGELOG.md"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aiserver"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
