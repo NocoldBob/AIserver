@@ -3,6 +3,11 @@
 All examples run local code only. They are intentionally small so you can replace the placeholder
 body with your own PyTorch, ONNX Runtime, TensorRT, OpenCV, OCR, ASR, or embedding model.
 
+See also:
+
+- [HTTP client recipes](HTTP_CLIENTS.md)
+- [LAN drone detector pattern](DRONE_LAN_PATTERN.md)
+
 ## JSON task
 
 ```bash
@@ -25,6 +30,7 @@ POST /v1/tasks/inspect-image/jobs-base64
 
 ## AI task skeletons
 
+- `examples.runnable_demo:server`
 - `examples.image_classification:server`
 - `examples.ocr:server`
 - `examples.yolo_detection:server`

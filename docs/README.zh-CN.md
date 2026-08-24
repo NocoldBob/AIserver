@@ -13,6 +13,8 @@ OpenCV、Ollama 客户端或任意 Python 代码，AIserver 只负责可靠地�
 - 支持 base64 JSON 文件输入，方便脚本、嵌入式设备或消息队列调用。
 - 支持用 `FileResult` 返回生成文件。
 - 同一个任务既可以直接执行，也可以提交为内存异步任务。
+- 支持列出、删除和查看异步 Job。
+- 如果 Job 结果是 `FileResult`，可以直接下载为文件。
 - 可选 SQLite 保存 Job 状态和结果，适合小型局域网服务。
 - 为每个任务设置并发数，避免多个请求耗尽显存或内存。
 - 支持进度、状态、结果查询和任务超时。
@@ -90,6 +92,12 @@ POST /v1/tasks/inspect-image/run-base64
 POST /v1/tasks/inspect-image/jobs-base64
 ```
 
+异步 Job 返回 `FileResult` 时，可以直接下载：
+
+```powershell
+curl.exe -L http://127.0.0.1:8000/v1/jobs/JOB_ID/result-file -o report.txt
+```
+
 ## SQLite Job 记录
 
 默认情况下，异步 Job 记录保存在内存中。小型局域网服务如果希望进程重启后仍能查询
@@ -99,6 +107,12 @@ POST /v1/tasks/inspect-image/jobs-base64
 from aiserver import AIServer, SQLiteJobStore
 
 server = AIServer("demo", job_store=SQLiteJobStore("jobs.sqlite3"))
+```
+
+也可以在 CLI 中启用：
+
+```powershell
+aiserver run app:server --jobs-db jobs.sqlite3
 ```
 
 进程重启后发现仍处于 queued/running 的任务，会被标记为 interrupted。AIserver 不会
@@ -149,6 +163,13 @@ TLS 的反向代理。
 
 更多样例见 [`docs/EXAMPLES.md`](EXAMPLES.md)，包括 OCR、图片分类、YOLO 检测、语音
 转文字、本地 embedding、自定义 pipeline 和无人机局域网检测服务样板。
+
+CLI 可以列出内置样例和版本：
+
+```powershell
+aiserver examples
+aiserver version
+```
 
 ## 旧版本说明
 

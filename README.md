@@ -21,6 +21,8 @@ job status, progress, lifecycle hooks, and conservative network defaults.
 - Accept base64 JSON file inputs when multipart is inconvenient.
 - Return generated files as base64-encoded `FileResult` payloads.
 - Run tasks directly or submit in-memory asynchronous jobs.
+- List, delete, and inspect asynchronous jobs through HTTP.
+- Download `FileResult` job outputs as files.
 - Optionally persist job status and results in SQLite.
 - Limit concurrency per task to protect CPU, GPU, and model memory.
 - Report progress from synchronous or asynchronous inference code.
@@ -119,6 +121,12 @@ POST /v1/tasks/detect/run-base64
 POST /v1/tasks/detect/jobs-base64
 ```
 
+If an asynchronous job returns `FileResult`, download it directly:
+
+```bash
+curl -L http://127.0.0.1:8000/v1/jobs/JOB_ID/result-file -o report.txt
+```
+
 ## SQLite job history
 
 Jobs are kept in memory by default. For small LAN services that need status and results to survive
@@ -128,6 +136,12 @@ process restarts, pass a SQLite store:
 from aiserver import AIServer, SQLiteJobStore
 
 server = AIServer("demo", job_store=SQLiteJobStore("jobs.sqlite3"))
+```
+
+Or enable it from the CLI without changing application code:
+
+```bash
+aiserver run app:server --jobs-db jobs.sqlite3
 ```
 
 Queued or running jobs found after a restart are marked as interrupted. AIserver does not replay
@@ -158,6 +172,13 @@ AIserver is deliberately single-process so tasks can share an in-memory model. W
 
 See [examples](docs/EXAMPLES.md) for OCR, image classification, YOLO detection, speech-to-text,
 local embeddings, custom pipelines, and a LAN drone detector pattern.
+
+List bundled examples from the CLI:
+
+```bash
+aiserver examples
+aiserver version
+```
 
 ## LAN access
 

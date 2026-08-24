@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "AIserver"
-version = "0.1.1"
+version = "0.1.2"
 description = "A lightweight, local-first Python server for typed AI inference tasks"
 readme = "README.md"
 requires-python = ">=3.11"

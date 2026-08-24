@@ -17,7 +17,7 @@ from time import perf_counter
 from typing import Any, get_type_hints
 from uuid import uuid4
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, Response, UploadFile
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, create_model
 
@@ -73,7 +73,7 @@ class AIServer:
         self,
         name: str = "AIserver",
         *,
-        version: str = "0.1.1",
+        version: str = "0.1.2",
         token: str | None = None,
         max_request_bytes: int = 16 * 1024 * 1024,
         max_job_history: int = 1_000,
@@ -236,6 +236,11 @@ class AIServer:
                 for spec in self._tasks.values()
             ]
 
+        @self.app.get("/v1/jobs", response_model=list[models.JobSnapshot], tags=["jobs"])
+        async def list_jobs() -> list[models.JobSnapshot]:
+            snapshots = [job.snapshot.model_copy(deep=True) for job in self._jobs.values()]
+            return sorted(snapshots, key=lambda job: job.created_at, reverse=True)
+
         @self.app.get("/v1/jobs/{job_id}", response_model=models.JobSnapshot, tags=["jobs"])
         async def get_job(job_id: str) -> models.JobSnapshot:
             runtime = self._jobs.get(job_id)
@@ -243,6 +248,36 @@ class AIServer:
                 raise HTTPException(status_code=404, detail="Job not found")
             with runtime.lock:
                 return runtime.snapshot.model_copy(deep=True)
+
+        @self.app.delete("/v1/jobs/{job_id}", status_code=204, tags=["jobs"])
+        async def delete_job(job_id: str) -> Response:
+            runtime = self._jobs.pop(job_id, None)
+            if runtime is None:
+                raise HTTPException(status_code=404, detail="Job not found")
+            if runtime.runner is not None and not runtime.runner.done():
+                runtime.runner.cancel()
+            if self.job_store is not None:
+                self.job_store.delete(job_id)
+            return Response(status_code=204)
+
+        @self.app.get("/v1/jobs/{job_id}/result-file", tags=["jobs"])
+        async def get_job_result_file(job_id: str) -> Response:
+            runtime = self._jobs.get(job_id)
+            if runtime is None:
+                raise HTTPException(status_code=404, detail="Job not found")
+            with runtime.lock:
+                snapshot = runtime.snapshot.model_copy(deep=True)
+            result = self._extract_file_result(snapshot.result)
+            if result is None:
+                raise HTTPException(status_code=404, detail="Job result is not a file")
+            headers = {}
+            if result.filename:
+                headers["Content-Disposition"] = f'attachment; filename="{result.filename}"'
+            return Response(
+                content=result.data,
+                media_type=result.content_type,
+                headers=headers,
+            )
 
     def _register_task_routes(self, spec: _TaskSpec) -> None:
         async def run_direct(payload: BaseModel) -> models.TaskExecutionResponse:
@@ -710,6 +745,21 @@ class AIServer:
         if isinstance(result, list):
             return [AIServer._encode_result(value) for value in result]
         return jsonable_encoder(result)
+
+    @staticmethod
+    def _extract_file_result(result: Any) -> models.InputFile | None:
+        if not isinstance(result, dict):
+            return None
+        if result.get("encoding") != "base64" or not isinstance(result.get("data_base64"), str):
+            return None
+        try:
+            return models.Base64FileInput(
+                data_base64=result["data_base64"],
+                filename=result.get("filename"),
+                content_type=result.get("content_type") or "application/octet-stream",
+            ).to_input_file()
+        except ValueError:
+            return None
 
     def _persist_job(self, runtime: _JobRuntime) -> None:
         if self.job_store is None:

@@ -8,6 +8,8 @@ Run on a trusted LAN with:
 from __future__ import annotations
 
 import os
+from datetime import UTC, datetime
+from time import perf_counter
 
 from aiserver import AIServer, InputFile, SQLiteJobStore, TaskContext
 
@@ -38,13 +40,16 @@ def load_detector() -> None:
 def detect_frame(frame: InputFile, context: TaskContext) -> dict[str, object]:
     """Run one frame through a local drone detector."""
 
+    started = perf_counter()
     context.report(0.2, "received frame")
     context.report(0.6, "running single-GPU detector")
     context.report(0.9, "postprocessing boxes")
     return {
-        "filename": frame.filename,
-        "content_type": frame.content_type,
+        "frame_id": frame.filename or "uploaded-frame",
+        "timestamp": datetime.now(UTC).isoformat(),
+        "camera": "unknown",
         "detections": [],
+        "latency_ms": round((perf_counter() - started) * 1000, 3),
         "model_configured": bool(detector and detector["model"]),
         "device": detector["device"] if detector else "cuda:0",
     }

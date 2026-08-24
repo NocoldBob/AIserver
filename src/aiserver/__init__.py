@@ -6,4 +6,4 @@ from .models import FileResult, InputFile, JobState
 from .storage import SQLiteJobStore
 
 __all__ = ["AIServer", "FileResult", "InputFile", "JobState", "SQLiteJobStore", "TaskContext"]
-__version__ = "0.1.1"
+__version__ = "0.1.2"

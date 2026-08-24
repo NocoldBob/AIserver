@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import threading
 import time
-from base64 import b64encode
+from base64 import b64decode, b64encode
 
 import pytest
 from fastapi.testclient import TestClient
@@ -172,6 +172,53 @@ def test_sqlite_job_store_persists_completed_jobs(tmp_path) -> None:
         persisted = client.get(f"/v1/jobs/{accepted['id']}")
         assert persisted.status_code == 200
         assert persisted.json()["result"] == "persist"
+
+
+def test_job_listing_delete_and_file_download() -> None:
+    server = AIServer()
+
+    @server.file_task()
+    def make_report(upload: InputFile) -> FileResult:
+        return FileResult.from_bytes(
+            upload.data.upper(),
+            filename="report.txt",
+            content_type="text/plain",
+        )
+
+    with TestClient(server.app) as client:
+        accepted = client.post(
+            "/v1/tasks/make-report/jobs",
+            files={"file": ("input.txt", b"hello", "text/plain")},
+        ).json()
+        body = _wait_for_terminal(client, accepted["id"])
+        assert body["result"]["data_base64"] == b64encode(b"HELLO").decode("ascii")
+
+        jobs = client.get("/v1/jobs")
+        assert jobs.status_code == 200
+        assert [job["id"] for job in jobs.json()] == [accepted["id"]]
+
+        download = client.get(f"/v1/jobs/{accepted['id']}/result-file")
+        assert download.status_code == 200
+        assert download.content == b"HELLO"
+        assert download.headers["content-type"].startswith("text/plain")
+        assert "report.txt" in download.headers["content-disposition"]
+
+        deleted = client.delete(f"/v1/jobs/{accepted['id']}")
+        assert deleted.status_code == 204
+        assert client.get(f"/v1/jobs/{accepted['id']}").status_code == 404
+
+
+def test_direct_bytes_result_is_encoded_as_file_result() -> None:
+    server = AIServer()
+
+    @server.task()
+    def raw_file() -> bytes:
+        return b"abc"
+
+    with TestClient(server.app) as client:
+        result = client.post("/v1/tasks/raw-file/run", json={}).json()["result"]
+        assert b64decode(result["data_base64"]) == b"abc"
+        assert result["encoding"] == "base64"
 
 
 def test_job_timeout_hides_late_result() -> None:

@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented in this file.
 
+## 0.1.2 - 2026-08-24
+
+- Added job management endpoints for listing and deleting job snapshots.
+- Added `GET /v1/jobs/{job_id}/result-file` for downloading `FileResult` job outputs.
+- Added `aiserver version`, `aiserver examples`, and `aiserver run --jobs-db`.
+- Added a runnable no-extra-dependency demo that covers JSON tasks, file uploads, OCR-style
+  metadata, embeddings, SQLite jobs, and file results.
+- Added HTTP client recipes and a public LAN drone detector pattern document.
+- Expanded tests for job management, file downloads, raw bytes results, and CLI helpers.
+
 ## 0.1.1 - 2026-08-24
 
 - Added `AIServer.file_task()` for multipart file upload inference tasks.
