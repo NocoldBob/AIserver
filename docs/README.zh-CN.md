@@ -9,7 +9,11 @@ OpenCV、Ollama 客户端或任意 Python 代码，AIserver 只负责可靠地�
 ## 主要能力
 
 - 根据 Python 类型注解自动校验输入并生成 OpenAPI 文档。
+- 支持 multipart 文件上传，适合图片、音频和文档类推理任务。
+- 支持 base64 JSON 文件输入，方便脚本、嵌入式设备或消息队列调用。
+- 支持用 `FileResult` 返回生成文件。
 - 同一个任务既可以直接执行，也可以提交为内存异步任务。
+- 可选 SQLite 保存 Job 状态和结果，适合小型局域网服务。
 - 为每个任务设置并发数，避免多个请求耗尽显存或内存。
 - 支持进度、状态、结果查询和任务超时。
 - 通过启动和关闭钩子统一加载、释放模型。
@@ -48,6 +52,57 @@ aiserver run app:server
 ```
 
 然后访问 `http://127.0.0.1:8000/docs`，可以直接在浏览器中调试接口。
+
+## 文件上传任务
+
+如果模型需要接收图片、音频或文档，可以使用 `file_task`：
+
+```python
+from aiserver import AIServer, FileResult, InputFile, TaskContext
+
+server = AIServer("vision")
+
+
+@server.file_task(concurrency=1, timeout=60, max_file_bytes=8 * 1024 * 1024)
+def inspect_image(
+    image: InputFile,
+    context: TaskContext,
+) -> FileResult:
+    context.report(0.5, "running model")
+    return FileResult.from_bytes(
+        b"generated report",
+        filename="report.txt",
+        content_type="text/plain",
+    )
+```
+
+调用时使用 multipart 表单：
+
+```powershell
+curl.exe -X POST http://127.0.0.1:8000/v1/tasks/inspect-image/run `
+  -F "file=@sample.png"
+```
+
+不方便使用 multipart 时，同一个文件任务还会生成 base64 JSON 入口：
+
+```text
+POST /v1/tasks/inspect-image/run-base64
+POST /v1/tasks/inspect-image/jobs-base64
+```
+
+## SQLite Job 记录
+
+默认情况下，异步 Job 记录保存在内存中。小型局域网服务如果希望进程重启后仍能查询
+已完成任务的状态和结果，可以使用 SQLite：
+
+```python
+from aiserver import AIServer, SQLiteJobStore
+
+server = AIServer("demo", job_store=SQLiteJobStore("jobs.sqlite3"))
+```
+
+进程重启后发现仍处于 queued/running 的任务，会被标记为 interrupted。AIserver 不会
+自动重放未完成的模型推理。
 
 ### 直接执行
 
@@ -88,11 +143,14 @@ TLS 的反向代理。
 ## 当前边界
 
 - 单进程运行，便于多个任务共享同一个内存模型。
-- 异步任务记录只保存在内存，程序重启后不会保留。
+- 未配置 `job_store` 时，异步任务记录只保存在内存，程序重启后不会保留。
 - 超时可以停止等待异步函数，但无法强制终止已经在线程中运行的同步模型代码。
 - 不负责下载模型、转换模型协议、分布式调度或云端管理。
 
+更多样例见 [`docs/EXAMPLES.md`](EXAMPLES.md)，包括 OCR、图片分类、YOLO 检测、语音
+转文字、本地 embedding、自定义 pipeline 和无人机局域网检测服务样板。
+
 ## 旧版本说明
 
-`0.1.0` 是完全重写版本，不兼容历史 `0.0.x` 中的远程聊天和机器人演示接口。旧版本
+`0.1.0` 及之后版本是完全重写版本，不兼容历史 `0.0.x` 中的远程聊天和机器人演示接口。旧版本
 不应继续使用。

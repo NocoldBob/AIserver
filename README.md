@@ -17,7 +17,11 @@ job status, progress, lifecycle hooks, and conservative network defaults.
 ## Features
 
 - Turn typed Python functions into documented HTTP endpoints.
+- Accept multipart file uploads for image, audio, and document inference tasks.
+- Accept base64 JSON file inputs when multipart is inconvenient.
+- Return generated files as base64-encoded `FileResult` payloads.
 - Run tasks directly or submit in-memory asynchronous jobs.
+- Optionally persist job status and results in SQLite.
 - Limit concurrency per task to protect CPU, GPU, and model memory.
 - Report progress from synchronous or asynchronous inference code.
 - Apply per-task timeouts and bounded job history.
@@ -37,8 +41,6 @@ job status, progress, lifecycle hooks, and conservative network defaults.
 ```bash
 pip install AIserver
 ```
-
-Until `0.1.0` is available on PyPI, install the wheel from the GitHub Release or build from source.
 
 ## Quick start
 
@@ -80,6 +82,57 @@ curl -X POST http://127.0.0.1:8000/v1/tasks/classify/jobs \
 
 Poll the returned `status_url` to read progress and the final result.
 
+## File uploads and file results
+
+Use `file_task` when the model expects an uploaded image, audio clip, or document:
+
+```python
+from aiserver import AIServer, FileResult, InputFile, TaskContext
+
+server = AIServer("vision")
+
+
+@server.file_task(concurrency=1, timeout=60, max_file_bytes=8 * 1024 * 1024)
+def detect(
+    image: InputFile,
+    context: TaskContext,
+) -> FileResult:
+    context.report(0.5, "running detector")
+    return FileResult.from_bytes(
+        b"generated report",
+        filename="report.txt",
+        content_type="text/plain",
+    )
+```
+
+Call it with multipart form data:
+
+```bash
+curl -X POST http://127.0.0.1:8000/v1/tasks/detect/run \
+  -F "file=@sample.png"
+```
+
+When multipart upload is inconvenient, use the generated base64 JSON endpoints:
+
+```text
+POST /v1/tasks/detect/run-base64
+POST /v1/tasks/detect/jobs-base64
+```
+
+## SQLite job history
+
+Jobs are kept in memory by default. For small LAN services that need status and results to survive
+process restarts, pass a SQLite store:
+
+```python
+from aiserver import AIServer, SQLiteJobStore
+
+server = AIServer("demo", job_store=SQLiteJobStore("jobs.sqlite3"))
+```
+
+Queued or running jobs found after a restart are marked as interrupted. AIserver does not replay
+unfinished model work.
+
 ## Lifecycle hooks
 
 Keep large model objects in your application module and initialize them once:
@@ -100,8 +153,11 @@ def release_model():
     model = None
 ```
 
-AIserver is deliberately single-process so tasks can share an in-memory model. Its asynchronous
-job records are not persistent and are lost when the process restarts.
+AIserver is deliberately single-process so tasks can share an in-memory model. Without a
+`job_store`, asynchronous job records stay in memory and are lost when the process restarts.
+
+See [examples](docs/EXAMPLES.md) for OCR, image classification, YOLO detection, speech-to-text,
+local embeddings, custom pipelines, and a LAN drone detector pattern.
 
 ## LAN access
 
@@ -131,7 +187,7 @@ specialized runtimes and platforms.
 
 ## Historical package notice
 
-Version `0.1.0` is a clean rewrite. It does not preserve the unrelated remote-chat and robot demo
+Version `0.1.0` and newer are a clean rewrite. They do not preserve the unrelated remote-chat and robot demo
 APIs from the historical `0.0.x` releases. Those releases should not be used.
 
 ## Development

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "AIserver"
-version = "0.1.0"
+version = "0.1.1"
 description = "A lightweight, local-first Python server for typed AI inference tasks"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -37,6 +37,7 @@ classifiers = [
 ]
 dependencies = [
   "fastapi>=0.115,<1.0",
+  "python-multipart>=0.0.20,<1.0",
   "pydantic>=2.8,<3.0",
   "uvicorn>=0.30,<1.0",
 ]
@@ -44,7 +45,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
   "build>=1.2,<2.0",
-  "httpx2>=2.10,<3.0",
+  "httpx>=0.27,<1.0",
   "pytest>=8.3,<10.0",
   "ruff>=0.9,<1.0",
   "twine>=6.0,<7.0",

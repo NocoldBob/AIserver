@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented in this file.
 
+## 0.1.1 - 2026-08-24
+
+- Added `AIServer.file_task()` for multipart file upload inference tasks.
+- Added base64 JSON endpoints for file tasks.
+- Added `InputFile` and `FileResult` helpers for file inputs and generated file outputs.
+- Added optional SQLite job snapshot persistence.
+- Added OCR, image classification, YOLO, speech-to-text, embedding, custom pipeline, and
+  LAN drone detector examples.
+- Added tests for multipart uploads, base64 uploads, file results, file size limits, and SQLite
+  job persistence.
+- Fixed the development dependency name from `httpx2` to `httpx`.
+- Documented that historical `0.0.x` releases should be yanked and avoided.
+
 ## 0.1.0 - 2026-08-20
 
 - Rebuilt AIserver from scratch as a local-first AI inference task server.

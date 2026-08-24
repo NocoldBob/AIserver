@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import threading
 import time
+from base64 import b64encode
 
+import pytest
 from fastapi.testclient import TestClient
 
-from aiserver import AIServer, TaskContext
+from aiserver import AIServer, FileResult, InputFile, SQLiteJobStore, TaskContext
 
 
 def _wait_for_terminal(client: TestClient, job_id: str, headers: dict[str, str] | None = None):
@@ -73,6 +75,105 @@ def test_async_job_progress_and_result() -> None:
         assert body["result"] == {"value": "HELLO"}
 
 
+def test_file_task_direct_and_job_uploads() -> None:
+    server = AIServer()
+
+    @server.file_task(concurrency=1, timeout=2)
+    def inspect_upload(
+        data: bytes,
+        filename: str,
+        content_type: str | None,
+        context: TaskContext,
+    ) -> dict[str, object]:
+        context.report(0.5, "reading upload")
+        return {
+            "bytes": len(data),
+            "filename": filename,
+            "content_type": content_type,
+            "prefix": data[:4].hex(),
+        }
+
+    with TestClient(server.app) as client:
+        direct = client.post(
+            "/v1/tasks/inspect-upload/run",
+            files={"file": ("sample.bin", b"\x00\x01\x02\x03\x04", "application/octet-stream")},
+        )
+        assert direct.status_code == 200
+        assert direct.json()["result"] == {
+            "bytes": 5,
+            "filename": "sample.bin",
+            "content_type": "application/octet-stream",
+            "prefix": "00010203",
+        }
+        tasks = client.get("/v1/tasks").json()
+        assert tasks[0]["input_schema"]["properties"]["file"]["format"] == "binary"
+
+        accepted = client.post(
+            "/v1/tasks/inspect-upload/jobs",
+            files={"file": ("image.png", b"\x89PNG\r\n", "image/png")},
+        )
+        assert accepted.status_code == 202
+        body = _wait_for_terminal(client, accepted.json()["id"])
+        assert body["state"] == "succeeded"
+        assert body["result"]["filename"] == "image.png"
+        assert body["result"]["content_type"] == "image/png"
+
+
+def test_file_task_base64_input_size_limit_and_file_result() -> None:
+    server = AIServer()
+
+    @server.file_task(max_file_bytes=8)
+    def reverse_upload(upload: InputFile) -> FileResult:
+        return FileResult.from_bytes(
+            upload.data[::-1],
+            filename=f"reversed-{upload.filename}",
+            content_type=upload.content_type or "application/octet-stream",
+        )
+
+    with TestClient(server.app) as client:
+        response = client.post(
+            "/v1/tasks/reverse-upload/run-base64",
+            json={
+                "data_base64": b64encode(b"abcdef").decode("ascii"),
+                "filename": "sample.bin",
+                "content_type": "application/octet-stream",
+            },
+        )
+        assert response.status_code == 200
+        assert response.json()["result"] == {
+            "data_base64": b64encode(b"fedcba").decode("ascii"),
+            "filename": "reversed-sample.bin",
+            "content_type": "application/octet-stream",
+            "encoding": "base64",
+        }
+
+        too_large = client.post(
+            "/v1/tasks/reverse-upload/run-base64",
+            json={"data_base64": b64encode(b"x" * 9).decode("ascii")},
+        )
+        assert too_large.status_code == 413
+
+
+def test_sqlite_job_store_persists_completed_jobs(tmp_path) -> None:
+    database = tmp_path / "jobs.sqlite3"
+    server = AIServer(job_store=SQLiteJobStore(database))
+
+    @server.task()
+    def echo(value: str) -> str:
+        return value
+
+    with TestClient(server.app) as client:
+        accepted = client.post("/v1/tasks/echo/jobs", json={"value": "persist"}).json()
+        body = _wait_for_terminal(client, accepted["id"])
+        assert body["state"] == "succeeded"
+
+    restored = AIServer(job_store=database)
+    with TestClient(restored.app) as client:
+        persisted = client.get(f"/v1/jobs/{accepted['id']}")
+        assert persisted.status_code == 200
+        assert persisted.json()["result"] == "persist"
+
+
 def test_job_timeout_hides_late_result() -> None:
     server = AIServer()
 
@@ -137,3 +238,13 @@ def test_request_size_limit_and_lifecycle_hooks() -> None:
         assert response.status_code == 413
         assert events == ["start"]
     assert events == ["start", "stop"]
+
+
+def test_file_task_validation() -> None:
+    server = AIServer()
+
+    with pytest.raises(ValueError, match="one bytes file parameter"):
+
+        @server.file_task()
+        def invalid(first: bytes, second: bytes) -> int:
+            return len(first) + len(second)

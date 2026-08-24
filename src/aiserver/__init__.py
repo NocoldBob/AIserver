@@ -2,7 +2,8 @@
 
 from .application import AIServer
 from .context import TaskContext
-from .models import JobState
+from .models import FileResult, InputFile, JobState
+from .storage import SQLiteJobStore
 
-__all__ = ["AIServer", "JobState", "TaskContext"]
-__version__ = "0.1.0"
+__all__ = ["AIServer", "FileResult", "InputFile", "JobState", "SQLiteJobStore", "TaskContext"]
+__version__ = "0.1.1"

@@ -5,7 +5,9 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .venv/
-.wheel-test/
+.pypi-install-test/
+.wheel-test*/
 build/
 dist/
 htmlcov/
+jobs/
